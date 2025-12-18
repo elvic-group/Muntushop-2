@@ -13,6 +13,11 @@ const templates = require('../templates/whatsapp');
 class PaymentService {
   async createCheckoutSession(userId, serviceType, amount, metadata = {}) {
     try {
+      // Validate amount
+      if (!amount || amount <= 0) {
+        throw new Error('Invalid payment amount. Amount must be greater than 0.');
+      }
+      
       const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
       
       if (userResult.rows.length === 0) {

@@ -372,7 +372,7 @@ class ShoppingService {
       );
       return;
     }
-    
+
     // Validate cart total
     if (!cart.total || cart.total <= 0) {
       await this.sendMessage(
@@ -381,7 +381,7 @@ class ShoppingService {
       );
       return;
     }
-    
+
     const message = templates.shopping.checkout(cart.total);
     await this.sendMessage(user.phone, message);
   }
@@ -417,13 +417,37 @@ class ShoppingService {
     });
 
     const cart = await this.getCart(user.id);
-    if (!cart || !cart.total) {
+    if (!cart || !cart.items || cart.items.length === 0) {
       await this.sendMessage(
         user.phone,
         "Error: Cart is empty. Type MENU to continue."
       );
       return;
     }
+    
+    // Recalculate total to ensure it's correct
+    const calculatedTotal = cart.items.reduce(
+      (sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1),
+      0
+    );
+    
+    if (calculatedTotal <= 0) {
+      await this.sendMessage(
+        user.phone,
+        "Error: Invalid cart total. Please add items to your cart first."
+      );
+      return;
+    }
+    
+    // Update cart total if it was incorrect
+    if (cart.total !== calculatedTotal) {
+      await db.query(
+        `UPDATE carts SET total = $1, updated_at = NOW() WHERE user_id = $2`,
+        [calculatedTotal, user.id]
+      );
+      cart.total = calculatedTotal;
+    }
+    
     const message = templates.shopping.paymentOptions(cart.total);
     await this.sendMessage(user.phone, message);
   }
@@ -442,23 +466,38 @@ class ShoppingService {
 
     if (option === 1) {
       // Stripe payment
+      // Recalculate total from items to ensure accuracy
+      const calculatedTotal = cart.items.reduce(
+        (sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1),
+        0
+      );
+      
       // Validate cart total before proceeding
-      if (!cart.total || cart.total <= 0) {
+      if (!calculatedTotal || calculatedTotal <= 0) {
         await this.sendMessage(
           user.phone,
           "Error: Invalid cart total. Please add items to your cart first."
         );
         return;
       }
+      
+      // Update cart total if needed
+      if (cart.total !== calculatedTotal) {
+        await db.query(
+          `UPDATE carts SET total = $1, updated_at = NOW() WHERE user_id = $2`,
+          [calculatedTotal, user.id]
+        );
+        cart.total = calculatedTotal;
+      }
 
       try {
         // Create order but don't send confirmation yet (wait for payment)
         const order = await this.createOrderPending(user, cart);
-        
+
         const paymentUrl = await paymentService.createCheckoutSession(
           user.id,
           "shopping",
-          cart.total,
+          calculatedTotal,
           { orderId: order.id }
         );
 
@@ -535,15 +574,14 @@ Type PAID to confirm.
   // Create order and send confirmation (for successful payment)
   async createOrderConfirmed(user, cart, orderId = null) {
     let order;
-    
+
     if (orderId) {
       // Order already exists, just update and confirm
-      const result = await db.query(
-        `SELECT * FROM orders WHERE id = $1`,
-        [orderId]
-      );
+      const result = await db.query(`SELECT * FROM orders WHERE id = $1`, [
+        orderId,
+      ]);
       order = result.rows[0];
-      
+
       if (!order) {
         throw new Error("Order not found");
       }
@@ -632,8 +670,24 @@ Type PAID to confirm.
         if (!Array.isArray(cart.items)) {
           cart.items = [];
         }
+        
+        // Recalculate total from items if total is 0 or missing but items exist
+        if (cart.items.length > 0 && (!cart.total || cart.total <= 0)) {
+          const calculatedTotal = cart.items.reduce(
+            (sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 1),
+            0
+          );
+          cart.total = calculatedTotal;
+          
+          // Update cart in database with recalculated total
+          await db.query(
+            `UPDATE carts SET total = $1, updated_at = NOW() WHERE user_id = $2`,
+            [calculatedTotal, userId]
+          );
+        }
       } else if (cart) {
         cart.items = [];
+        cart.total = 0;
       }
       return cart;
     } catch (error) {
