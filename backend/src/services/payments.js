@@ -69,6 +69,23 @@ class PaymentService {
       return session.url;
     } catch (error) {
       console.error('Error creating checkout session:', error);
+      console.error('Error details:', {
+        message: error.message,
+        type: error.type,
+        code: error.code,
+        userId,
+        serviceType,
+        amount,
+        metadata
+      });
+      
+      // Provide more specific error messages
+      if (error.type === 'StripeInvalidRequestError') {
+        throw new Error(`Payment configuration error: ${error.message}`);
+      } else if (error.message && error.message.includes('not configured')) {
+        throw new Error('Payment service is not configured. Please contact support.');
+      }
+      
       throw error;
     }
   }

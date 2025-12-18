@@ -492,14 +492,18 @@ class ShoppingService {
 
       try {
         // Create order but don't send confirmation yet (wait for payment)
+        console.log(`Creating pending order for user ${user.id}, total: ${calculatedTotal}`);
         const order = await this.createOrderPending(user, cart);
+        console.log(`Order created: ${order.order_number} (ID: ${order.id})`);
 
+        console.log(`Creating Stripe checkout session for order ${order.id}`);
         const paymentUrl = await paymentService.createCheckoutSession(
           user.id,
           "shopping",
           calculatedTotal,
           { orderId: order.id }
         );
+        console.log(`Payment URL created: ${paymentUrl}`);
 
         const message = templates.shopping.stripePayment(
           paymentUrl,
@@ -508,10 +512,27 @@ class ShoppingService {
         await this.sendMessage(user.phone, message);
       } catch (error) {
         console.error("Error creating payment:", error);
-        await this.sendMessage(
-          user.phone,
-          "Error processing payment. Please try again or type MENU."
-        );
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack,
+          userId: user.id,
+          total: calculatedTotal,
+          cartItems: cart.items?.length || 0
+        });
+        
+        // Send more specific error message
+        let errorMessage = "Error processing payment. Please try again or type MENU.";
+        if (error.message) {
+          if (error.message.includes('Stripe') || error.message.includes('not configured')) {
+            errorMessage = "Payment service is not configured. Please contact support.";
+          } else if (error.message.includes('Invalid')) {
+            errorMessage = error.message;
+          } else if (error.message.includes('User not found')) {
+            errorMessage = "Account error. Please try again or contact support.";
+          }
+        }
+        
+        await this.sendMessage(user.phone, errorMessage);
       }
     } else if (option === 2) {
       // M-Pesa
