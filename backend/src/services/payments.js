@@ -8,6 +8,7 @@ const db = require('../config/database');
 const greenAPI = require('../config/greenapi');
 const shoppingService = require('./shopping');
 const iptvService = require('./iptv');
+const templates = require('../templates/whatsapp');
 
 class PaymentService {
   async createCheckoutSession(userId, serviceType, amount, metadata = {}) {
@@ -201,23 +202,23 @@ class PaymentService {
         return;
       }
       
-      // Send confirmation
+      // Send confirmation using template
       const orderNumber = order.order_number || `ORD-${orderId}`;
       const total = order.total || 0;
-      const message = `
-🎉 PAYMENT SUCCESSFUL!
-
-Order #${orderNumber}
-Total: $${total.toFixed(2)}
-
-✅ Payment received
-📦 Processing your order
-🚚 Estimated delivery: 5-7 days
-
-You'll receive tracking info soon!
-
-Type MENU to continue.
-      `;
+      
+      // Parse items if stored as JSON string
+      let items = [];
+      if (order.items) {
+        try {
+          items = typeof order.items === 'string' 
+            ? JSON.parse(order.items) 
+            : order.items;
+        } catch (e) {
+          items = [];
+        }
+      }
+      
+      const message = templates.shopping.paymentSuccess(orderNumber, total);
       
       try {
         await greenAPI.message.sendMessage(
@@ -226,7 +227,7 @@ Type MENU to continue.
           message
         );
       } catch (error) {
-        console.error('Error sending order confirmation:', error);
+        console.error('Error sending payment confirmation:', error);
       }
     } catch (error) {
       console.error('Error fulfilling order:', error);

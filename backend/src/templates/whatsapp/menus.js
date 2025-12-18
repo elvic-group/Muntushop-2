@@ -70,8 +70,11 @@ Type MENU to explore all services
 Need help? Reply HELP anytime
 `;
 
-exports.serviceNotImplemented = (serviceName) => `
-🚧 ${serviceName} Coming Soon!
+exports.serviceNotImplemented = (serviceName) => {
+  const service = serviceName || 'This service';
+  
+  return `
+🚧 ${service} Coming Soon!
 
 This service is currently under development.
 
@@ -82,4 +85,5 @@ We're working hard to bring you the best experience!
 
 Type MENU to see available services
 `;
+};
 

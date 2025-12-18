@@ -62,6 +62,9 @@ class WhatsAppHandler {
       if (!user) {
         try {
           user = await this.createUser(phone, senderData.senderName || "User");
+          // Send welcome message to new user
+          const welcomeMsg = templates.main.welcomeMessage(user.name || senderData.senderName);
+          await this.sendMessage(phone, welcomeMsg);
         } catch (createError) {
           // Send error message to user instead of silently failing
           await this.sendMessage(
@@ -257,10 +260,9 @@ class WhatsAppHandler {
           break;
         // Add other services
         default:
-          await this.sendMessage(
-            user.phone,
-            `Service ${service} is coming soon! Type MENU to continue.`
-          );
+          const serviceName = service.charAt(0).toUpperCase() + service.slice(1);
+          const notImplementedMsg = templates.main.serviceNotImplemented(serviceName);
+          await this.sendMessage(user.phone, notImplementedMsg);
       }
     } catch (error) {
       console.error(`Error sending ${service} menu:`, error);

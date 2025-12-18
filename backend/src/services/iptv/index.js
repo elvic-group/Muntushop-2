@@ -195,24 +195,8 @@ class IPTVService {
     }
     
     const sub = result.rows[0];
-    const daysLeft = Math.ceil((new Date(sub.expires_at) - new Date()) / (1000 * 60 * 60 * 24));
-    
-    let message = `📺 YOUR IPTV SUBSCRIPTION\n\n`;
-    message += `Plan: ${sub.plan_name}\n`;
-    message += `Channels: ${sub.channels_count}+\n`;
-    message += `Status: ${sub.status}\n`;
-    message += `Expires in: ${daysLeft} days\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━\n`;
-    message += `Credentials:\n`;
-    message += `Username: ${sub.username}\n`;
-    message += `Password: ${sub.password}\n`;
-    message += `━━━━━━━━━━━━━━━━━━\n\n`;
-    message += `Playlist: ${sub.playlist_url}\n\n`;
-    message += `1️⃣ Renew Now\n`;
-    message += `2️⃣ Setup Guide\n`;
-    message += `3️⃣ Channel List\n`;
-    message += `0️⃣ Main Menu`;
-    
+    // Use template for subscription details
+    const message = templates.iptv.subscriptionDetails(sub);
     await this.sendMessage(user.phone, message);
   }
   
@@ -227,32 +211,14 @@ class IPTVService {
       '🌍 International (200+ countries)'
     ];
     
-    let message = '📺 CHANNEL CATEGORIES\n\n';
-    message += channels.join('\n');
-    message += '\n\n1200+ channels available!';
-    message += '\n\nType IPTV to subscribe!';
-    
+    // Use template for channel list
+    const message = templates.iptv.channelList(channels);
     await this.sendMessage(user.phone, message);
   }
   
   async showSetupGuide(user) {
-    const message = `
-📖 IPTV SETUP GUIDE
-
-Android/iOS:
-1. Download "IPTV Smarters Pro"
-2. Enter playlist URL
-3. Enter username & password
-4. Enjoy! 🎉
-
-Smart TV:
-1. Install IPTV Player
-2. Enter playlist URL
-3. Login
-4. Watch! 📺
-
-Need help? Type SUPPORT
-    `;
+    // Use template for setup guide
+    const message = templates.iptv.setupGuide();
     await this.sendMessage(user.phone, message);
   }
   

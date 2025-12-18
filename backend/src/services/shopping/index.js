@@ -94,13 +94,8 @@ class ShoppingService {
     
     await this.updateUserStep(user.id, 'products', { category, products: products.map(p => p.id) });
     
-    // Format products list
-    let message = `📱 ${category}\n\n`;
-    products.forEach((product, i) => {
-      message += `${i+1}. ${product.name} - $${product.price}\n   ⭐ ${product.rating || '4.5'}/5\n\n`;
-    });
-    message += 'Reply with number to view details\nOr type MENU to go back';
-    
+    // Use template for product list
+    const message = templates.shopping.productList(products, category);
     await this.sendMessage(user.phone, message);
   }
   
@@ -416,10 +411,21 @@ Type PAID to confirm.
       JSON.stringify({ address })
     ]);
     
+    const order = result.rows[0];
+    
+    // Send order confirmation
+    const items = cart.items || [];
+    const confirmationMsg = templates.shopping.orderConfirmation(
+      order.order_number,
+      cart.total,
+      items
+    );
+    await this.sendMessage(user.phone, confirmationMsg);
+    
     // Clear cart
     await this.clearCart(user.id);
     
-    return result.rows[0];
+    return order;
   }
   
   async showOrders(user) {
@@ -432,25 +438,15 @@ Type PAID to confirm.
     
     const orders = result.rows;
     
-    if (orders.length === 0) {
-      await this.sendMessage(user.phone, '📦 No orders yet!\n\nType MENU to start shopping.');
-      return;
-    }
-    
-    let message = '📦 YOUR ORDERS\n\n';
-    orders.forEach((order, i) => {
-      message += `${i+1}. Order #${order.order_number}\n`;
-      message += `   Status: ${order.status}\n`;
-      message += `   Total: $${order.total}\n`;
-      message += `   Date: ${new Date(order.created_at).toLocaleDateString()}\n\n`;
-    });
-    
-    message += 'Reply with order number to track\nOr type MENU to return';
-    
+    // Use template for orders list
+    const message = templates.shopping.ordersList(orders);
     await this.sendMessage(user.phone, message);
   }
   
   async showReviews(user, productId) {
+    const product = await this.getProduct(productId);
+    const productName = product?.name || 'Product';
+    
     const result = await db.query(`
       SELECT * FROM product_reviews 
       WHERE product_id = $1 AND is_approved = true
@@ -460,16 +456,9 @@ Type PAID to confirm.
     
     const reviews = result.rows;
     
-    if (reviews.length === 0) {
-      await this.sendMessage(user.phone, 'No reviews yet for this product.');
-    } else {
-      let message = '⭐ REVIEWS\n\n';
-      reviews.forEach((review, i) => {
-        message += `${i+1}. ⭐ ${review.rating}/5\n`;
-        message += `${review.content || 'No comment'}\n\n`;
-      });
-      await this.sendMessage(user.phone, message);
-    }
+    // Use template for reviews list
+    const message = templates.shopping.reviewsList(reviews, productName);
+    await this.sendMessage(user.phone, message);
   }
   
   // Helper methods
