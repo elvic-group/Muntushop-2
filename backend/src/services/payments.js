@@ -170,14 +170,7 @@ class PaymentService {
     }
     
     try {
-      // Update order status
-      await db.query(`
-        UPDATE orders 
-        SET payment_status = $1, status = $2, paid_at = NOW()
-        WHERE id = $3
-      `, ['paid', 'processing', orderId]);
-      
-      // Get order details
+      // Get order details first (before updating)
       const orderResult = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
       if (orderResult.rows.length === 0) {
         console.error('Order not found:', orderId);
@@ -202,11 +195,7 @@ class PaymentService {
         return;
       }
       
-      // Send confirmation using template
-      const orderNumber = order.order_number || `ORD-${orderId}`;
-      const total = order.total || 0;
-      
-      // Parse items if stored as JSON string
+      // Get cart items for confirmation
       let items = [];
       if (order.items) {
         try {
@@ -217,7 +206,26 @@ class PaymentService {
           items = [];
         }
       }
+
+      // Create cart object for confirmation
+      const cart = {
+        items: items,
+        total: parseFloat(order.total) || 0
+      };
+
+      // Update order status BEFORE sending confirmation
+      await db.query(`
+        UPDATE orders 
+        SET payment_status = $1, status = $2, paid_at = NOW()
+        WHERE id = $3
+      `, ['paid', 'processing', orderId]);
       
+      // Send order confirmation using shopping service (this also clears cart)
+      await shoppingService.createOrderConfirmed(user, cart, orderId);
+      
+      // Send payment success message
+      const orderNumber = order.order_number || `ORD-${orderId}`;
+      const total = order.total || 0;
       const message = templates.shopping.paymentSuccess(orderNumber, total);
       
       try {
