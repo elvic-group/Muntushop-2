@@ -148,8 +148,17 @@ class WhatsAppHandler {
         msg.startsWith("checkout") ||
         msg.startsWith("order");
 
-      if (isServiceCommand) {
-        // Valid service command - route to service handler
+      // Check if current step requires text input (like address, notes, etc.)
+      const requiresTextInput = [
+        'checkout_address',
+        'checkout_notes',
+        'address',
+        'notes',
+        'description'
+      ].includes(user.current_step);
+
+      if (isServiceCommand || requiresTextInput) {
+        // Valid service command or text input step - route to service handler
         return await this.handleServiceFlow(user, message);
       } else {
         // Not a service command - use AI agent for natural language

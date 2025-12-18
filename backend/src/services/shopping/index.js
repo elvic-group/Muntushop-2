@@ -319,12 +319,26 @@ class ShoppingService {
   }
   
   async handleAddress(user, address) {
+    // Check if user typed CANCEL
+    const msg = address.toLowerCase().trim();
+    if (msg === 'cancel' || msg === '0' || msg === 'back') {
+      await this.showMenu(user);
+      return;
+    }
+    
     if (!address || address.trim().length === 0) {
       await this.sendMessage(user.phone, 'Please provide a valid address. Type CANCEL to go back.');
       return;
     }
+    
+    // Validate address format (should have at least a few characters)
+    if (address.trim().length < 5) {
+      await this.sendMessage(user.phone, 'Please provide a complete address (at least 5 characters). Type CANCEL to go back.');
+      return;
+    }
+    
     // Save address
-    await this.updateUserStep(user.id, 'checkout_payment', { address });
+    await this.updateUserStep(user.id, 'checkout_payment', { address: address.trim() });
     
     const cart = await this.getCart(user.id);
     if (!cart || !cart.total) {
