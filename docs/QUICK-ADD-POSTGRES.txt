@@ -1,0 +1,24 @@
+QUICK FIX: Add PostgreSQL to Railway
+
+Option 1: Railway Dashboard (RECOMMENDED)
+==========================================
+1. Run: railway open
+2. Click: "+ New" → "Database" → "PostgreSQL"
+3. Wait: ~30 seconds
+4. Done! DATABASE_URL will be auto-set
+
+Option 2: CLI (Interactive)
+===========================
+1. Run: railway add --database postgres
+2. When prompted, select: Database → postgres
+3. Done!
+
+Verify:
+-------
+railway variables | grep DATABASE_URL
+
+Should show: DATABASE_URL=postgresql://...
+
+Then run migrations:
+--------------------
+railway run psql $DATABASE_URL -f backend/database/schema.sql

@@ -1,0 +1,14 @@
+{
+  "typeWebhook": "incomingMessageReceived",
+  "senderData": {
+    "chatId": "4796701573@c.us",
+    "sender": "4796701573@c.us",
+    "senderName": "Test User"
+  },
+  "messageData": {
+    "typeMessage": "textMessage",
+    "textMessageData": {
+      "textMessage": "menu"
+    }
+  }
+}
