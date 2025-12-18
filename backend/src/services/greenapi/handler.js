@@ -96,8 +96,19 @@ class WhatsAppHandler {
     
     const msg = message.toLowerCase().trim();
     
-    // Check for main menu triggers
+    // Check for main menu triggers (these always go to main menu)
     if (['hi', 'hello', 'hey', 'menu', 'start', 'help'].includes(msg)) {
+      // Clear service flow when user explicitly requests menu
+      if (user.current_service && ['menu', 'start'].includes(msg)) {
+        try {
+          await db.query(
+            'UPDATE users SET current_service = NULL, current_step = NULL WHERE id = $1',
+            [user.id]
+          );
+        } catch (e) {
+          // Ignore errors
+        }
+      }
       if (msg === 'help') {
         return await this.sendHelp(user.phone);
       }
@@ -106,7 +117,29 @@ class WhatsAppHandler {
     
     // Check if user is in a service flow
     if (user.current_service) {
-      return await this.handleServiceFlow(user, message);
+      // Check if message is a valid service command (numbers, back, menu, etc.)
+      const isServiceCommand = msg.match(/^[0-9]+$/) || 
+                               ['back', '0', 'cancel'].includes(msg) ||
+                               msg.startsWith('add') ||
+                               msg.startsWith('remove') ||
+                               msg.startsWith('checkout') ||
+                               msg.startsWith('order');
+      
+      if (isServiceCommand) {
+        // Valid service command - route to service handler
+        return await this.handleServiceFlow(user, message);
+      } else {
+        // Not a service command - use AI agent for natural language
+        try {
+          const aiResponse = await aiAgent.processMessage(user.phone, message, user);
+          await this.sendMessage(user.phone, aiResponse);
+          return;
+        } catch (aiError) {
+          console.error('AI agent error:', aiError);
+          // Fallback to service handler if AI fails
+          return await this.handleServiceFlow(user, message);
+        }
+      }
     }
     
     // Handle main menu selection
