@@ -366,7 +366,11 @@ POST /webhooks/stripe      # Stripe webhooks
 
 All API routes are prefixed with `/api/v1/`:
 
-- `GET/POST /api/v1/auth` - Authentication
+- `POST /api/v1/auth/register` - Register a user with `email`, `phone`, and `password`
+- `POST /api/v1/auth/login` - Log in with `identifier` (or `email` or `phone`) and `password`
+- `POST /api/v1/auth/forgot-password` - Create a password reset token for an existing account
+- `POST /api/v1/auth/reset-password` - Reset the password using a valid reset token
+- `GET /api/v1/auth/me` - Get the current user from a bearer token
 - `GET/POST /api/v1/products` - Products management
 - `GET/POST /api/v1/orders` - Orders management
 - `GET/POST /api/v1/cart` - Shopping cart
@@ -381,6 +385,12 @@ All API routes are prefixed with `/api/v1/`:
 - `GET/POST /api/v1/b2b` - B2B wholesale
 - `GET/POST /api/v1/iptv` - IPTV subscriptions
 - `GET/POST /api/v1/payments` - Payment processing
+
+#### Password Reset Notes
+
+- Reset tokens are stored hashed in the database and expire after one hour.
+- In non-production environments, the `forgot-password` response includes the raw reset token to simplify frontend wiring and local testing.
+- In production, the endpoint returns only a generic success message until a mail or SMS delivery service is connected.
 
 #### Admin Routes
 
@@ -641,6 +651,15 @@ node tests/test_db_connection.js
 
 > **This section tracks all significant changes to the project**
 
+### 2026-05-03 - Backend Auth Foundation
+
+- ✅ Implemented JWT-based register, login, and current-user endpoints
+- ✅ Added reusable bearer-token auth middleware
+- ✅ Added forgot-password and reset-password backend flow
+- ✅ Added reset token storage fields to the user schema
+- ✅ Added a migration for password reset fields
+- ✅ Documented the new auth endpoints and reset-token behavior
+
 ### 2024-12-18 - Project Cleanup & Restructure
 
 - ✅ Removed duplicate nested `backend/backend/` directory
@@ -725,7 +744,7 @@ ISC License
 
 ---
 
-**Last Updated**: December 18, 2024  
+**Last Updated**: May 3, 2026  
 **Maintained By**: MuntuShop Development Team
 
 ---
