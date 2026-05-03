@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255),
   email VARCHAR(255) UNIQUE,
   password_hash VARCHAR(255),
+  reset_password_token_hash VARCHAR(255),
+  reset_password_expires_at TIMESTAMP,
   language VARCHAR(5) DEFAULT 'en',
   timezone VARCHAR(50) DEFAULT 'UTC',
   
@@ -1001,6 +1003,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid);
+CREATE INDEX IF NOT EXISTS idx_users_reset_password_expires_at ON users(reset_password_expires_at);
 
 -- Products
 CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
@@ -1047,4 +1050,3 @@ CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
 -- Notifications
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
-
