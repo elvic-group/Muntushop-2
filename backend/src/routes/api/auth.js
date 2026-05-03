@@ -3,6 +3,7 @@
  * Registration, login, and current-user endpoints for the web dashboard.
  */
 
+const crypto = require('crypto');
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -56,6 +57,22 @@ function sanitizeUser(user) {
   };
 }
 
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function buildPasswordResetResponse(message, resetToken, resetExpiresAt) {
+  if (process.env.NODE_ENV === 'production') {
+    return { message };
+  }
+
+  return {
+    message,
+    resetToken,
+    resetExpiresAt
+  };
+}
+
 async function findUserByIdentifier(identifier) {
   const normalized = String(identifier || '').trim().toLowerCase();
 
@@ -63,7 +80,8 @@ async function findUserByIdentifier(identifier) {
     `SELECT id, uuid, phone, name, email, password_hash, language, timezone,
             current_service, current_step, session_data, preferences,
             is_active, is_verified, email_verified, phone_verified,
-            last_seen_at, created_at, updated_at
+            last_seen_at, created_at, updated_at,
+            reset_password_token_hash, reset_password_expires_at
      FROM users
      WHERE LOWER(email) = $1 OR phone = $2
      LIMIT 1`,
@@ -196,6 +214,125 @@ router.post('/login', async (req, res) => {
     res.status(error.status || 500).json({
       error: error.message || 'Login failed',
       code: 'AUTH_LOGIN_ERROR'
+    });
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email, phone, identifier } = req.body;
+    const lookupIdentifier = identifier || email || phone;
+
+    if (!lookupIdentifier) {
+      return res.status(400).json({
+        error: 'identifier is required',
+        code: 'AUTH_MISSING_IDENTIFIER'
+      });
+    }
+
+    const result = await findUserByIdentifier(lookupIdentifier);
+    const defaultMessage = 'If the account exists, a password reset token has been created.';
+
+    if (result.rows.length === 0 || !result.rows[0].is_active) {
+      return res.json({ message: defaultMessage });
+    }
+
+    const user = result.rows[0];
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = hashResetToken(resetToken);
+
+    const updateResult = await db.query(
+      `UPDATE users
+       SET reset_password_token_hash = $1,
+           reset_password_expires_at = NOW() + INTERVAL '1 hour',
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING reset_password_expires_at`,
+      [resetTokenHash, user.id]
+    );
+
+    return res.json(
+      buildPasswordResetResponse(
+        defaultMessage,
+        resetToken,
+        updateResult.rows[0].reset_password_expires_at
+      )
+    );
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(error.status || 500).json({
+      error: error.message || 'Password reset request failed',
+      code: 'AUTH_FORGOT_PASSWORD_ERROR'
+    });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        error: 'token and password are required',
+        code: 'AUTH_MISSING_RESET_FIELDS'
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long',
+        code: 'AUTH_WEAK_PASSWORD'
+      });
+    }
+
+    const result = await db.query(
+      `SELECT id, uuid, phone, name, email, language, timezone, current_service,
+              current_step, session_data, preferences, is_active, is_verified,
+              email_verified, phone_verified, last_seen_at, created_at, updated_at
+       FROM users
+       WHERE reset_password_token_hash = $1
+         AND reset_password_expires_at > NOW()
+       LIMIT 1`,
+      [hashResetToken(String(token).trim())]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid or expired reset token',
+        code: 'AUTH_INVALID_RESET_TOKEN'
+      });
+    }
+
+    const user = result.rows[0];
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const updatedUserResult = await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           reset_password_token_hash = NULL,
+           reset_password_expires_at = NULL,
+           last_seen_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, uuid, phone, name, email, language, timezone, current_service,
+                 current_step, session_data, preferences, is_active, is_verified,
+                 email_verified, phone_verified, last_seen_at, created_at, updated_at`,
+      [passwordHash, user.id]
+    );
+
+    const updatedUser = updatedUserResult.rows[0];
+    const authToken = createToken(updatedUser);
+
+    res.json({
+      message: 'Password reset successful',
+      token: authToken,
+      user: sanitizeUser(updatedUser)
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(error.status || 500).json({
+      error: error.message || 'Password reset failed',
+      code: 'AUTH_RESET_PASSWORD_ERROR'
     });
   }
 });
